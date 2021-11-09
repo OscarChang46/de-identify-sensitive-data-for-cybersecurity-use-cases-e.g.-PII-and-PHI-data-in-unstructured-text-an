@@ -141,6 +141,7 @@ if __name__ == "__main__":
     h0 = model.initHidden()
     c0 = model.initCell()
     input_size = (seq_len,1)
+    # tensor dimension error
     summary(model, input_size, batch_size=1, device='cpu')
     
 
