@@ -94,7 +94,7 @@ class RegLSTM(nn.Module):
                         nn.Linear(hidden_size, output_size))
         self.h0 = self.lstm.initHidden()
         self.c0 = self.lstm.initCell()
-    def forward(self, x):
+    def forward(self, x):# the forward function do not involve in the backward computation
         output = self.lstm(x, self.h0, self.c0)[0] # output, hidden_size, cell_size = self.lstm(x)
         seq_len, batch_size, hid_dim = output.shape
         output = output.view(-1, hid_dim)
