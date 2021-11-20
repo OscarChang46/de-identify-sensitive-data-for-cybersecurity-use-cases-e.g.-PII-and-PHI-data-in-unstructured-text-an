@@ -75,7 +75,7 @@ class LSTM(nn.Module):
         hidden = torch.mul(self.tanh(cell, o_gate))
         output = self.output(hidden)
         output = self.softmax(output)
-
+        # only rerturn out?
         return output, hidden, cell
     
     def initHidden(self):
