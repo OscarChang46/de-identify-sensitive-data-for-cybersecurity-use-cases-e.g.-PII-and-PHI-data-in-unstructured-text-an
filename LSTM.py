@@ -56,6 +56,7 @@ class LSTM(nn.Module):
 
 
     def forward(self, input):
+        # initialize hidden layer
         hidden = self.initHidden()
         cell = self.initCell()
         print(input.shape)
