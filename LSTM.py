@@ -59,6 +59,7 @@ class LSTM(nn.Module):
         # initialize hidden layer
         hidden = self.initHidden()
         cell = self.initCell()
+        # why the input layer will be 2 in first dimension
         print(input.shape)
         print(hidden.shape)
         combined = torch.cat((input, hidden), 1)
