@@ -62,6 +62,7 @@ class LSTM(nn.Module):
         # why the input layer will be 2 in first dimension
         print(input.shape)
         print(hidden.shape)
+        print(cell.shape)
         combined = torch.cat((input, hidden), 1)
         f_gate = self.gate(combined)
         f_gate = self.sigmoid(f_gate)
@@ -142,9 +143,10 @@ if __name__ == "__main__":
     # print(model)
     h0 = model.initHidden()
     c0 = model.initCell()
-    input_size = (seq_len,1)
+    input_size = (1,1)
+    print(model(torch.randn(1, seq_len)))
     # tensor dimension error
-    summary(model, input_size, batch_size=1, device='cpu')
+    # summary(model, input_size, batch_size=1, device='cpu')
     
 
     '''
