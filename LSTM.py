@@ -42,49 +42,38 @@ def load_data():
     seq = (seq - seq.mean(axis=0)) / seq.std(axis=0)
     return seq
 
-
 class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, cell_size):
+    def __init__(self, input_size, hidden_size, cell_size, output_size):
         super(LSTM, self).__init__()
-        self.gate = nn.Linear(input_size + hidden_size, cell_size) 
         self.hidden_size = hidden_size
         self.cell_size = cell_size
-        self.output = nn.Linear(hidden_size, input_size)
-        self.sigmoid =nn.Sigmoid()
+        self.gate = nn.Linear(input_size + hidden_size, cell_size)
+        self.output = nn.Linear(hidden_size, output_size)
+        self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
         self.softmax = nn.LogSoftmax()
 
-
-    def forward(self, input):
-        # initialize hidden layer
-        hidden = self.initHidden()
-        cell = self.initCell()
-        # why the input layer will be 2 in first dimension
-        print(input.shape)
-        print(hidden.shape)
-        print(cell.shape)
+    def forward(self, input, hidden, cell):
         combined = torch.cat((input, hidden), 1)
         f_gate = self.gate(combined)
-        f_gate = self.sigmoid(f_gate)
         i_gate = self.gate(combined)
-        i_gate = self.sigmoid(i_gate)
         o_gate = self.gate(combined)
+        f_gate = self.sigmoid(f_gate)
+        i_gate = self.sigmoid(i_gate)
         o_gate = self.sigmoid(o_gate)
-        c_tilde = self.gate(combined)
-        c_tilde = self.tanh(c_tilde)
-        cell = torch.add(torch.mul(cell, f_gate) + torch.mul(c_tilde, i_gate))
-        hidden = torch.mul(self.tanh(cell, o_gate))
+        cell_helper = self.gate(combined)
+        cell_helper = self.tanh(cell_helper)
+        cell = torch.add(torch.mul(cell, f_gate), torch.mul(cell_helper, i_gate))
+        hidden = torch.mul(self.tanh(cell), o_gate)
         output = self.output(hidden)
         output = self.softmax(output)
-        # only rerturn out?
         return output, hidden, cell
-    
+
     def initHidden(self):
         return Variable(torch.zeros(1, self.hidden_size))
 
     def initCell(self):
         return Variable(torch.zeros(1, self.cell_size))
-
 
 
 ##
@@ -139,14 +128,14 @@ if __name__ == "__main__":
     seq_len = 108
     batch_size = 1
     input_dim = 3
-    model = LSTM(input_dim, hidden_dim, cell_dim)
+    model = LSTM(input_dim, hidden_dim, cell_dim, input_dim)
     # print(model)
     h0 = model.initHidden()
     c0 = model.initCell()
     input_size = (1,1)
     print(model(torch.randn(1, seq_len)))
     # tensor dimension error
-    # summary(model, input_size, batch_size=1, device='cpu')
+    summary(model, input_size, batch_size=1, device='cpu')
     
 
     '''
