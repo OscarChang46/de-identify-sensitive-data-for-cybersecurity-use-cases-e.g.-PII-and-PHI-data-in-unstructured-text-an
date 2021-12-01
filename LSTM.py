@@ -1,6 +1,4 @@
 from torch.autograd import Variable
-import torch
-import torch.nn as nn
 import numpy as np
 
 # sample data
@@ -42,99 +40,135 @@ def load_data():
     seq = (seq - seq.mean(axis=0)) / seq.std(axis=0)
     return seq
 
-class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, cell_size, output_size):
-        super(LSTM, self).__init__()
+
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+import torchvision.datasets as dsets
+from torch import Tensor
+import torch.nn.functional as F
+
+
+import pdb
+import math
+
+cuda  = True if torch.cuda.is_available() else False
+
+class LSTMCell(nn.Module):
+    
+    """
+    An implementation of Hochreiter & Schmidhuber:
+    'Long-Short Term Memory' cell.
+    http://www.bioinf.jku.at/publications/older/2604.pdf
+
+    """
+
+    def __init__(self, input_size, hidden_size, bias=True):
+        super(LSTMCell, self).__init__()
+        self.input_size = input_size
         self.hidden_size = hidden_size
-        self.cell_size = cell_size
-        self.gate = nn.Linear(input_size + hidden_size, cell_size)
-        self.output = nn.Linear(hidden_size, output_size)
-        self.sigmoid = nn.Sigmoid()
-        self.tanh = nn.Tanh()
-        self.softmax = nn.LogSoftmax()
-
-    def forward(self, input, hidden, cell):
-        combined = torch.cat((input, hidden), 1)
-        f_gate = self.gate(combined)
-        i_gate = self.gate(combined)
-        o_gate = self.gate(combined)
-        f_gate = self.sigmoid(f_gate)
-        i_gate = self.sigmoid(i_gate)
-        o_gate = self.sigmoid(o_gate)
-        cell_helper = self.gate(combined)
-        cell_helper = self.tanh(cell_helper)
-        cell = torch.add(torch.mul(cell, f_gate), torch.mul(cell_helper, i_gate))
-        hidden = torch.mul(self.tanh(cell), o_gate)
-        output = self.output(hidden)
-        output = self.softmax(output)
-        return output, hidden, cell
-
-    def initHidden(self):
-        return Variable(torch.zeros(1, self.hidden_size))
-
-    def initCell(self):
-        return Variable(torch.zeros(1, self.cell_size))
-
-
-##
-class RegLSTM(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size, cell_size):
-        super(RegLSTM, self).__init__()
-        self.lstm = LSTM(input_size, hidden_size, cell_size)
-        self.reg = nn.Sequential(nn.Linear(hidden_size, hidden_size),
-                        nn.Sigmoid(),
-                        nn.Linear(hidden_size, output_size))
-        self.h0 = self.lstm.initHidden()
-        self.c0 = self.lstm.initCell()
-    def forward(self, x):# the forward function do not involve in the backward computation
-        output = self.lstm(x, self.h0, self.c0)[0] # output, hidden_size, cell_size = self.lstm(x)
-        seq_len, batch_size, hid_dim = output.shape
-        output = output.view(-1, hid_dim)
-        output = self.reg(output)
-        output = output.view(seq_len, batch_size, -1)
-        return output
-
-
-def train_lstm():
-    input_dim = 10
-    hidden_dim = 5
-    cell_dim = 5
-    output_dim = 10
-
-    data = load_data()
-
-    data_x = data[:-1,:]
-    data_y = data[+1:,0]
-    assert(data_x.shape[1] == input_dim)
-
-    train_size = int(len(data_x) * 0.75)
-
-    train_x = data_x[:train_size]
-    train_y = data_y[:train_size]
-
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.bias = bias
+        self.x2h = nn.Linear(input_size, 4 * hidden_size, bias=bias)
+        self.h2h = nn.Linear(hidden_size, 4 * hidden_size, bias=bias)
+        self.c2c = Tensor(hidden_size * 3)
+        self.reset_parameters()
 
 
 
+    def reset_parameters(self):
+        std = 1.0 / math.sqrt(self.hidden_size)
+        for w in self.parameters():
+            w.data.uniform_(-std, std)
+    
+    def forward(self, x, hidden):
+        #pdb.set_trace()
+        hx, cx = hidden
+        
+        x = x.view(-1, x.size(1))
+        
+        gates = self.x2h(x) + self.h2h(hx)
+    
+        gates = gates.squeeze()
+        
+        c2c = self.c2c.unsqueeze(0)
+        ci, cf, co = c2c.chunk(3,1)
+        ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
+        
+        ingate = torch.sigmoid(ingate+ ci * cx)
+        forgetgate = torch.sigmoid(forgetgate + cf * cx)
+        cellgate = forgetgate*cx + ingate* torch.tanh(cellgate)
+        outgate = torch.sigmoid(outgate+ co*cellgate)
+        
+
+        hm = outgate * F.tanh(cellgate)
+        return (hm, cellgate)
+
+
+class LSTMModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, bias=True):
+        super(LSTMModel, self).__init__()
+        # Hidden dimensions
+        self.hidden_dim = hidden_dim
+         
+        # Number of hidden layers
+        self.layer_dim = layer_dim
+               
+        self.lstm = LSTMCell(input_dim, hidden_dim, layer_dim)  
+        
+        self.fc = nn.Linear(hidden_dim, output_dim)
+     
+    
+    
+    def forward(self, x):
+        
+        # Initialize hidden state with zeros
+        #######################
+        #  USE GPU FOR MODEL  #
+        #######################
+        #print(x.shape,"x.shape")100, 28, 28
+        if torch.cuda.is_available():
+            h0 = Tensor(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
+        else:
+            h0 = Tensor(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim))
+
+        # Initialize cell state
+        if torch.cuda.is_available():
+            c0 = Tensor(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
+        else:
+            c0 = Tensor(torch.zeros(self.layer_dim, x.size(0), hidden_dim))
+
+                    
+       
+        outs = []
+        
+        cn = c0[0,:,:]
+        hn = h0[0,:,:]
+        
+        for seq in range(x.size(1)):
+            hn, cn = self.lstm(x[:,seq,:], (hn,cn)) 
+            outs.append(hn)
+            
+    
+
+        out = outs[-1].squeeze()
+        
+        out = self.fc(out) 
+        # out.size() --> 100, 10
+        return out
+
+
+input_dim = 28
+hidden_dim = 128
+layer_dim = 1  # ONLY CHANGE IS HERE FROM ONE LAYER TO TWO LAYER
+output_dim = 10
+ 
+model = LSTMModel(input_dim, hidden_dim, layer_dim, output_dim)
 
 if __name__ == "__main__":
     import torch
     from torchvision.models import AlexNet
     from torchsummary import summary
-    input_dim = 10
-    hidden_dim = 5
-    cell_dim = 5
-    output_dim = 10
-    seq_len = 108
-    batch_size = 1
-    input_dim = 3
-    model = LSTM(input_dim, hidden_dim, cell_dim, input_dim)
-    # print(model)
-    h0 = model.initHidden()
-    c0 = model.initCell()
-    input_size = (1,1)
-    print(model(torch.randn(1, seq_len)))
-    # tensor dimension error
+    input_size = (3,256, 256)
     summary(model, input_size, batch_size=1, device='cpu')
     
 
