@@ -26,4 +26,27 @@ def _generate_potential_table(params, num_labels, feature_set, X, inference=True
 
 
 def _forward_backward():
+    '''
+    calculates alpha (forward terms), beta(backward terms), and Z(instance-specific normalization factor)
+    with a scaling method
+
+    '''
+    pass
+
+
+def _calc_path_score():
+    pass
+
+
+def _log_likelihood():
+    '''
+    calculate likelihood and gradient
+    '''
+    pass
+
+
+class LinearChainCRF():
+    '''
+    Linear Chain Conditional Random field
+    '''
     pass
