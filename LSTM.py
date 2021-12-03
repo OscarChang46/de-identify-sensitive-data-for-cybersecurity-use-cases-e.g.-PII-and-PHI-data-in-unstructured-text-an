@@ -103,7 +103,7 @@ class LSTMCell(nn.Module):
         hm = outgate * F.tanh(cellgate)
         return (hm, cellgate)
 
-
+##
 class LSTMModel(nn.Module):
     def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, bias=True):
         super(LSTMModel, self).__init__()
